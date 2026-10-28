@@ -1,0 +1,160 @@
+{
+  "app_name": "NewsSearch",
+  "personality": "3 Editorial Mobile LIGHT (with user custom oat sand palette & sharp structural edges)",
+  "personality_one_liner": "A rigorous, broadsheet-inspired fact-checking and news analysis instrument pairing typographic clarity with stark structural separation.",
+  "color": {
+    "surface": "#FDFBF7",
+    "onSurface": "#2C2A29",
+    "surfaceSecondary": "#F4F0E8",
+    "onSurfaceSecondary": "#2C2A29",
+    "surfaceTertiary": "#EAE3D5",
+    "onSurfaceTertiary": "#2C2A29",
+    "surfaceInverse": "#2C2A29",
+    "onSurfaceInverse": "#FDFBF7",
+    "brand": "#C87965",
+    "brandPrimary": "#C87965",
+    "onBrandPrimary": "#FDFBF7",
+    "brandSecondary": "#7D846C",
+    "onBrandSecondary": "#FDFBF7",
+    "brandTertiary": "#EAE3D5",
+    "onBrandTertiary": "#2C2A29",
+    "success": "#7D846C",
+    "onSuccess": "#FDFBF7",
+    "warning": "#D4A373",
+    "onWarning": "#2C2A29",
+    "error": "#B65A45",
+    "onError": "#FDFBF7",
+    "info": "#7D846C",
+    "onInfo": "#FDFBF7",
+    "border": "#2C2A29",
+    "borderStrong": "#2C2A29",
+    "divider": "#EAE3D5",
+    "muted": "#76726E",
+    "onBrand": "#FDFBF7"
+  },
+  "typography": {
+    "displayFontFamily": "Nunito",
+    "textFontFamily": "Nunito",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Generous vertical breathing room, clean structural margins, 0px border radius (sharp structural edges) per user choice.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 0,
+    "md": 0,
+    "lg": 0,
+    "pill": 0
+  },
+  "shadow_tier": "0",
+  "navigation": "bottom_tabs",
+  "icon_set": "Ionicons",
+  "glassmorphism": {
+    "enabled": false,
+    "do's": [
+      "Use sharp 1pt solid borders for all containers",
+      "Strict separation of ML prediction track and External evidence review track",
+      "Keep text high contrast against oat sand surface"
+    ],
+    "dont's": [
+      "No rounded cards",
+      "No shadows or gradients",
+      "No emojis anywhere",
+      "No combined verdict between ML and Evidence"
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "none",
+      "android": "none",
+      "low_end_android_fallback": "solid surface"
+    },
+    "image": "expo-image",
+    "blur": "none",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Auth",
+      "purpose": "Supabase email/password authentication screen for registration and sign-in prior to analysis.",
+      "states": {
+        "loading": "Centered minimalist spinner on #FDFBF7",
+        "empty": "Clean form fields with terracotta primary action",
+        "error": "Inline error banner with #B65A45 border"
+      },
+      "layout": "Centered editorial card layout with bold Nunito headers, sharp border framing, clear input labels, and sticky submit action."
+    },
+    {
+      "name": "Home / Analysis",
+      "purpose": "Core claim, text, and URL input interface submitting to Flask backend for TF-IDF + Logistic Regression and multi-provider evidence.",
+      "states": {
+        "loading": "Analyzing text and querying fact-check providers...",
+        "empty": "Enter a news claim, paste article text, or input URL to initiate verification.",
+        "error": "Failed to connect to verification API. Retry button."
+      },
+      "layout": "Vertical stacked editor with tab toggle (Text / URL), clear submit button, followed by visually separate ML Prediction Track and External Evidence Track with zero combined verdict."
+    },
+    {
+      "name": "Discovery",
+      "purpose": "Worldwide multi-provider news and fact-check discovery feed with curated primary sources.",
+      "states": {
+        "loading": "Fetching global fact-check records...",
+        "empty": "No recent discovery records found.",
+        "error": "Unable to fetch global feed. Retry."
+      },
+      "layout": "Brothersheet list with filter chips, source metadata badges, and direct drill-down to detail view."
+    },
+    {
+      "name": "History",
+      "purpose": "User-specific analysis history protected by PostgreSQL RLS with minimal retention and clear/delete options.",
+      "states": {
+        "loading": "Loading analysis archive...",
+        "empty": "No analysis history recorded yet.",
+        "error": "Failed to load history."
+      },
+      "layout": "Chronological list of past analyses with timestamps, claim snippets, and quick delete action."
+    },
+    {
+      "name": "Notifications & Sources",
+      "purpose": "In-app notifications and curated primary sources directory with health status.",
+      "states": {
+        "loading": "Loading notifications and source registry...",
+        "empty": "All caught up. No new notifications.",
+        "error": "Failed to load system updates."
+      },
+      "layout": "Divided sections for system alerts and active fact-check providers with status indicators."
+    },
+    {
+      "name": "Settings & Legal",
+      "purpose": "Account info, data retention details, Terms of Service, Privacy Policy, and sign out.",
+      "states": {
+        "loading": "Loading settings...",
+        "empty": "N/A",
+        "error": "Failed to load settings."
+      },
+      "layout": "Clean editorial list linking to legal documents (TOS & Privacy Policy) and sign out action."
+    }
+  ],
+  "images": {
+    "editorial_header": {
+      "url": "https://images.unsplash.com/photo-1635185481339-ec107276a2a4?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "alt": "Minimalist editorial research document"
+    }
+  },
+  "instructions_to_main_agent": "Strictly implement user choices: Nunito typography, oat sand background (#FDFBF7), deep charcoal text (#2C2A29), terracotta (#C87965) and muted olive (#7D846C) accents. Sharp structural edges (0 radius), no shadows, no gradients, no emojis anywhere. Visually separate ML prediction track and external evidence review track with NO combined verdict anywhere. Supabase auth required before analysis. Flask JSON API with TF-IDF + Logistic Regression baseline and Groq explanation."
+}

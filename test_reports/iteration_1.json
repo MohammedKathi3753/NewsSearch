@@ -1,0 +1,53 @@
+{
+  "summary": "Backend: 30 pytest cases (28 pass) plus extra checks (public URL analyze, hex-IP SSRF, >10k text, non-JSON body, all OK). Health/ready/sources, 401 gating on every private route, analyze (ML track + Groq explanation + evidence summary, persisted), SSRF blocks (169.254.169.254, localhost, 127.0.0.1, [::1], 0x7f000001 all 422), history CRUD, RLS isolation between tester1 and tester2, discover and 400 validation all work. Two CORS issues: (1) the backend allow-list matches regexes by prefix only, so https://x.preview.emergentagent.com.evil.example.com gets reflected in ACAO (app bug); (2) https://evil.example.com gets no ACAO from Flask, but the public ingress adds 'Access-Control-Allow-Origin: *' (platform layer, not app). Frontend (375x667): every requested flow passes: sign-in (empty and wrong-password errors), sign-up validation (mismatch, short password), Analyze with separate ML and evidence cards and the separation note with no combined verdict, URL mode errors, History list/detail/delete confirm/Clear all, Discover search and chips, Sources, Alerts empty state, Settings status/providers, Terms/Privacy, Sign out and auth guard. Main visible bug: Google News evidence snippets show raw HTML ('<a href=\"https://news.google.com/rss/articles/...'). No deprecated Expo packages found.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "CORS (server.py:80-81 _cors_origins)", "issue": "flask-cors matches regex origins with re.match (prefix only). Origin 'https://x.preview.emergentagent.com.evil.example.com' is allowed and reflected in Access-Control-Allow-Origin, both locally and via the public URL. The patterns are also broad enough to allow ANY *.preview.emergentagent.com / *.emergent.host app. Fix: anchor the patterns, e.g. r'^https://[a-z0-9-]+\\.preview\\.emergentagent\\.com$', or better, allow only the exact EXPO_PACKAGER_PROXY_URL origin plus APP_ORIGINS.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "CORS config (server.py:90)", "issue": "Flask-CORS logs 'Unknown option passed to Flask-CORS: allow_methods'. The kwarg should be 'methods', so the method restriction is silently ignored."},
+      {"endpoint": "evidence items (providers.py:83 _make_item)", "issue": "The snippet is only html.unescape'd, never stripped of tags. Google News RSS summaries come through as raw '<a href=...>...</a><font>' HTML and appear verbatim in the Analyze evidence card, the detail screen and Discover results. Strip tags (e.g. BeautifulSoup(snippet,'html.parser').get_text(' ', strip=True)) before storing."},
+      {"endpoint": "public ingress", "issue": "The platform ingress adds 'Access-Control-Allow-Origin: *' on GET /api/* for an origin Flask rejects (https://evil.example.com). This is outside app code. The impact is limited because auth is a Bearer header, not cookies. Mention it in docs."},
+      {"endpoint": "GET /health (root)", "issue": "Through the public URL, /health (no /api prefix) is routed to the Expo frontend and returns HTML. The backend route only works internally. Use /api/health for external probes."},
+      {"endpoint": "ingestion (ingestion.py)", "issue": "At 18:46:57 the backend log showed 'evidence_pool lookup/insert failed: Database request failed (404)'. The table now exists and a manual ingest_job() run succeeded (30 records). Probably the schema was applied after startup, so this looks transient. Consider retrying or logging the response body."},
+      {"endpoint": "ssrf.py", "issue": "DNS is resolved in _assert_safe and then again by requests (TOCTOU / DNS-rebinding window). Low risk; pin the resolved IP if you want to harden it."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Evidence item snippet (EvidenceTrackCard / Discover)", "issue": "Raw HTML anchor markup is shown as snippet text for Google News items (backend root cause above).", "testID": "evidence-item-*", "priority": "HIGH"},
+      {"component": "Analysis detail header", "issue": "The /analysis/[id] header says 'Analyze' (t('analyze.title')) instead of an analysis-detail title. Reference: app/analysis/[id].tsx:45", "testID": "analysis-detail-screen", "priority": "LOW"},
+      {"component": "Sign-up -> Sign-in link", "issue": "Link href='/sign-in' pushes a second sign-in screen onto the stack, leaving duplicate hidden sign-in inputs in the DOM (also back-stack growth). Use router.replace or router.back. Reference: app/sign-up.tsx:68,111; app/sign-in.tsx:80", "testID": "signup-signin-link", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "All root screens (AppHeader)", "issues": ["When there is no back button, the header title is still indented by an empty icon slot of about 40px, so 'Analyze'/'History'/'Settings'/'NewsSearch' do not line up with the 16px content gutter. Reference: src/components/Screen.tsx:84-91"]},
+      {"screen": "Settings", "issues": ["SectionHeader repeats the same text as eyebrow and title ('SYSTEM STATUS' / 'System status', 'DISCOVERY PROVIDERS' / 'Discovery providers', 'DATA AND RETENTION' / 'Data and retention', 'LEGAL' / 'Legal'). Reference: app/(tabs)/settings.tsx:74,105,120", "Account email appears twice (section title and the 'Signed in as' card)."]},
+      {"screen": "Discover / Analyze", "issues": ["The primary Search/Analyze button sits flush against the input above it with no vertical gap (needs about 8-16px).", "Discover shows a 'Discover' field label right under the 'Discover' header (redundant)."]},
+      {"screen": "Toast", "issues": ["The 'History cleared.' toast covers the header title at the top. Acceptable, but consider placing it below the header."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_newssearch_api.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "HIGH: Anchor the CORS origin regexes (or use exact origins) in server.py _cors_origins, so suffix-appended attacker domains and other apps on the preview domain are rejected.",
+    "HIGH: Strip HTML tags from provider snippets in providers.py _make_item (Google News RSS summary contains <a>/<font> markup) before persisting and returning.",
+    "Rename the Flask-CORS kwarg allow_methods -> methods in server.py.",
+    "Use a detail-specific header title on /analysis/[id].",
+    "Use router.replace/back for the sign-up <-> sign-in links to avoid stacking duplicate auth screens.",
+    "AppHeader: don't reserve the back-icon slot when there is no back button. Settings: remove the duplicated eyebrow/title text. Add a gap between inputs and primary buttons."
+  ],
+  "critical_code_review_comments": [
+    "server.py CORS regex origins are prefix-matched by flask-cors (re.match), so they are bypassable.",
+    "server.py rate limiting is in-memory per process; with multiple Gunicorn workers the effective limit is multiplied and resets on restart.",
+    "supa.py raises 502 'database_request_failed' for any PostgREST 4xx/5xx and drops the response body. Log the body so schema/RLS errors are diagnosable.",
+    "providers.py snippets are not HTML-sanitized (see above)."
+  ],
+  "updated_files": ["/app/backend/tests/test_newssearch_api.py"],
+  "success_rate": {"backend": "93% (28/30; 1 real app CORS bug, 1 ingress-level ACAO '*')", "frontend": "100% of requested flows functional; 1 high-visibility content bug (raw HTML snippets)"},
+  "seed_data_creation": "No new users. Analyses created by tests were deleted (both testers' histories cleared). One manual ingestion.ingest_job() run inserted 30 evidence_pool rows (normal app behavior).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Get tokens via Supabase password grant (the test file reads keys from backend/.env). Run with: cd /app/backend && python -m pytest tests/test_newssearch_api.py (pytest.ini enables xdist; add -p no:xdist -o addopts='' -s to see prints). Each run makes about 1-3 analyze calls per xdist worker (rate limit 30/h/user). The web stack keeps hidden screens in the DOM: use ':visible' or specific testIDs (settings-terms-link, settings-privacy-link) rather than text selectors. Tabs have no testIDs; click by tab label text with .last.",
+  "rca_of_issue": "CORS bypass: flask_cors.core.try_match uses re.match(pattern, origin), and the pattern r'https://.*\\.preview\\.emergentagent\\.com' has no '$', so any origin starting with a preview subdomain matches. Raw HTML snippet: Google News RSS <description> is HTML; providers._make_item only unescapes entities."
+}
