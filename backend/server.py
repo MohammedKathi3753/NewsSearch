@@ -30,7 +30,7 @@ load_dotenv(ROOT_DIR / ".env")
 import ml_model
 import providers
 import sources_data
-from groq_client import explain_prediction, groq_available, summarize_evidence
+from groq_client import LANGUAGE_NAMES, assess_claim, groq_available, summarize_evidence
 from ingestion import start_scheduler
 from ssrf import extract_article, safe_fetch
 from supa import (
@@ -90,6 +90,7 @@ CORS(
     origins=_cors_origins(),
     methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "apikey"],
+    expose_headers=["Content-Disposition"],
     max_age=600,
 )
 
@@ -140,7 +141,7 @@ def ready():
         "groq_configured": groq_available(),
         "providers_enabled": providers.enabled_count(),
     }
-    ok = supabase_configured() and ml["loaded"]
+    ok = supabase_configured() and checks["supabase_reachable"] and ml["loaded"]
     return jsonify({"ok": ok, "degraded": not ok, "checks": checks}), (200 if ok else 503)
 
 
@@ -190,24 +191,39 @@ def analyze():
         except Exception:
             raise ApiError("url_fetch_failed", 422, "This URL could not be fetched (unreachable, blocked, or not public).")
     text = text[:ANALYZE_MAX_TEXT]
+    lang = str(data.get("lang") or "en").lower()[:5]
+    if lang not in LANGUAGE_NAMES:
+        lang = "en"
 
     ml = ml_model.predict(text)
+    if ml is not None:
+        # The baseline learned long-form writing style; short claims are unreliable.
+        ml["reliability"] = "low" if len(text.split()) < 80 else "normal"
+        ml.pop("top_features", None)
     keywords = ml_model.keywords(text)
-    query = " ".join(keywords[:8]) or text[:80]
+    short_claim = len(text) <= 220
+    query = re.sub(r"[\"“”]", "", text).strip() if short_claim else (" ".join(keywords[:8]) or text[:80])
 
     evidence, provider_results = providers.search_all(query)
+    if short_claim and len(evidence) < 3 and keywords:
+        # Fall back to keyword search when the exact phrasing finds little.
+        more, more_results = providers.search_all(" ".join(keywords[:6]))
+        seen = {item["fingerprint"] for item in evidence}
+        evidence.extend(item for item in more if item["fingerprint"] not in seen)
+        provider_results = more_results
 
-    explanation, explanation_reason = None, None
     summary, summary_reason = None, None
+    verdict, verdict_reason = None, None
     if groq_available():
-        if ml is not None:
-            explanation = explain_prediction(text[:2000], ml)
-            explanation_reason = None if explanation else "groq_request_failed"
         if evidence:
-            summary = summarize_evidence(text[:1500], evidence[:10])
+            verdict = assess_claim(text[:1500], evidence[:12], lang)
+            verdict_reason = None if verdict else "groq_request_failed"
+            summary = summarize_evidence(text[:1500], evidence[:10], lang)
             summary_reason = None if summary else "groq_request_failed"
+        else:
+            verdict = {"verdict": "insufficient", "confidence": "low", "reasoning": "", "citations": []}
     else:
-        explanation_reason = summary_reason = "groq_not_configured"
+        summary_reason = verdict_reason = "groq_not_configured"
 
     providers_failed = [r for r in provider_results if r["status"] in ("error", "cooldown")]
 
@@ -220,12 +236,14 @@ def analyze():
         "ml_available": ml is not None,
         "ml_label": ml["label"] if ml else None,
         "ml_probability": ml["probabilities"]["real"] if ml else None,
-        "ml_features": {"top": ml["top_features"]} if ml else None,
+        "ml_features": {"reliability": ml["reliability"]} if ml else None,
         "ml_model_version": ml["model_version"] if ml else None,
         "keywords": keywords,
         "evidence": [providers.public_item(i) for i in evidence[:12]],
-        "ai_explanation": explanation,
+        "ai_explanation": None,
         "ai_summary": summary,
+        "evidence_verdict": verdict,
+        "lang": lang,
         "providers_used": [r["provider"] for r in provider_results if r["status"] == "ok"],
         "providers_failed": providers_failed,
     }
@@ -233,7 +251,15 @@ def analyze():
     persisted = True
     if supabase_configured():
         try:
-            saved = rest_user("POST", "analyses", g.token, json_body=row, prefer="return=representation")
+            try:
+                saved = rest_user("POST", "analyses", g.token, json_body=row, prefer="return=representation")
+            except ApiError as first_error:
+                if first_error.code != "schema_column_missing":
+                    raise
+                # Migration 002 not applied yet: keep verdict + language inside the existing ml_features JSON.
+                legacy = {k: v for k, v in row.items() if k not in ("evidence_verdict", "lang")}
+                legacy["ml_features"] = {**(row["ml_features"] or {}), "evidence_verdict": verdict, "lang": lang}
+                saved = rest_user("POST", "analyses", g.token, json_body=legacy, prefer="return=representation")
             if saved:
                 row["id"] = saved[0]["id"]
                 row["created_at"] = saved[0]["created_at"]
@@ -258,7 +284,7 @@ def analyze():
         "persisted": persisted,
         "input": {"type": row["input_type"], "text": text[:600], "url": url or None, "source_title": source_title},
         "ml_track": ml or {"available": False, "reason": "model_not_available"},
-        "ai_explanation": {"available": explanation is not None, "text": explanation, "reason": explanation_reason},
+        "evidence_verdict": {"available": verdict is not None, "reason": verdict_reason, **(verdict or {})},
         "evidence_track": {
             "summary": {"available": summary is not None, "text": summary, "reason": summary_reason},
             "items": [providers.public_item(i) for i in evidence],
@@ -266,6 +292,20 @@ def analyze():
             "providers_failed": providers_failed,
         },
     }), 201
+
+
+def _normalize(row: dict) -> dict:
+    """Uniform analysis shape whether or not migration 002 is applied."""
+    features = row.get("ml_features") or {}
+    if not row.get("evidence_verdict") and isinstance(features, dict) and features.get("evidence_verdict"):
+        row["evidence_verdict"] = features.get("evidence_verdict")
+    if not row.get("lang") and isinstance(features, dict):
+        row["lang"] = features.get("lang") or "en"
+    if isinstance(features, dict):
+        row["ml_features"] = {"reliability": features.get("reliability")} if features.get("reliability") else None
+    row.pop("ai_explanation", None)
+    row.pop("expires_at", None)
+    return row
 
 
 @flask_app.get("/api/analyses")
@@ -281,14 +321,13 @@ def list_analyses():
         "analyses",
         g.token,
         params={
-            "select": "id,input_type,input_text,input_url,source_title,ml_available,ml_label,ml_probability,"
-                      "evidence,providers_used,providers_failed,created_at",
+            "select": "*",
             "order": "created_at.desc",
             "limit": str(limit),
             "offset": str(offset),
         },
     )
-    return jsonify(rows)
+    return jsonify([_normalize(r) for r in rows])
 
 
 @flask_app.get("/api/analyses/<analysis_id>")
@@ -299,7 +338,7 @@ def get_analysis(analysis_id: str):
     rows = rest_user("GET", "analyses", g.token, params={"id": f"eq.{analysis_id}", "limit": "1"})
     if not rows:
         raise ApiError("not_found", 404, "This analysis does not exist in your history.")
-    return jsonify(rows[0])
+    return jsonify(_normalize(rows[0]))
 
 
 @flask_app.delete("/api/analyses/<analysis_id>")
@@ -316,6 +355,198 @@ def delete_analysis(analysis_id: str):
 def clear_analyses():
     rest_user("DELETE", "analyses", g.token, params={"user_id": f"eq.{g.user['id']}"})
     return jsonify({"ok": True})
+
+
+SHARE_FIELDS = (
+    "input_type", "input_text", "input_url", "source_title", "ml_available", "ml_label", "ml_probability",
+    "ml_features", "ml_model_version", "evidence", "ai_summary", "evidence_verdict", "providers_used",
+    "providers_failed", "created_at", "lang",
+)
+
+
+def _own_analysis(analysis_id: str) -> dict:
+    if not UUID_RE.match(analysis_id):
+        raise ApiError("invalid_id", 400, "The analysis id is not valid.")
+    rows = rest_user("GET", "analyses", g.token, params={"id": f"eq.{analysis_id}", "limit": "1"})
+    if not rows:
+        raise ApiError("not_found", 404, "This analysis does not exist in your history.")
+    return _normalize(rows[0])
+
+
+@flask_app.get("/api/analyses/<analysis_id>/share")
+@require_auth
+def get_share(analysis_id: str):
+    _own_analysis(analysis_id)
+    rows = rest_user("GET", "shared_analyses", g.token, params={"analysis_id": f"eq.{analysis_id}", "limit": "1"})
+    return jsonify({"shared": bool(rows), "token": rows[0]["token"] if rows else None})
+
+
+@flask_app.post("/api/analyses/<analysis_id>/share")
+@require_auth
+def create_share(analysis_id: str):
+    import secrets
+
+    analysis = _own_analysis(analysis_id)
+    existing = rest_user("GET", "shared_analyses", g.token, params={"analysis_id": f"eq.{analysis_id}", "limit": "1"})
+    if existing:
+        return jsonify({"shared": True, "token": existing[0]["token"]})
+    token = secrets.token_urlsafe(18)
+    snapshot = {key: analysis.get(key) for key in SHARE_FIELDS}
+    rest_user(
+        "POST",
+        "shared_analyses",
+        g.token,
+        json_body={"token": token, "analysis_id": analysis_id, "owner_id": g.user["id"], "snapshot": snapshot},
+        prefer="return=minimal",
+    )
+    return jsonify({"shared": True, "token": token}), 201
+
+
+@flask_app.delete("/api/analyses/<analysis_id>/share")
+@require_auth
+def delete_share(analysis_id: str):
+    _own_analysis(analysis_id)
+    rest_user("DELETE", "shared_analyses", g.token, params={"analysis_id": f"eq.{analysis_id}"})
+    return jsonify({"shared": False, "token": None})
+
+
+@flask_app.get("/api/shared/<token>")
+@require_auth
+def view_shared(token: str):
+    """Signed-in users only. The share token is looked up server-side, so
+    shared rows are never listable through the database API."""
+    if not re.match(r"^[A-Za-z0-9_-]{16,64}$", token):
+        raise ApiError("invalid_token", 400, "This share link is not valid.")
+    from supa import rest_service
+
+    rows = rest_service(
+        "GET", "shared_analyses", params={"token": f"eq.{token}", "select": "snapshot,created_at", "limit": "1"}
+    )
+    if not rows:
+        raise ApiError("not_found", 404, "This shared analysis no longer exists or sharing was turned off.")
+    return jsonify({"analysis": rows[0]["snapshot"], "shared_at": rows[0]["created_at"]})
+
+
+VERDICT_LABELS = {
+    "supported": "Supported by sources",
+    "contradicted": "Contradicted by fact-checks/sources",
+    "mixed": "Mixed evidence",
+    "insufficient": "Not enough evidence",
+}
+
+
+@flask_app.get("/api/export")
+@require_auth
+def export_history():
+    import csv
+    import io
+
+    from flask import Response
+
+    fmt = (request.args.get("format") or "csv").lower()
+    if fmt not in ("csv", "pdf"):
+        raise ApiError("invalid_format", 400, "Format must be csv or pdf.")
+    rows = [_normalize(r) for r in rest_user("GET", "analyses", g.token, params={"select": "*", "order": "created_at.desc", "limit": "50"})]
+    stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M")
+
+    def verdict_of(row):
+        v = row.get("evidence_verdict") or {}
+        return VERDICT_LABELS.get(v.get("verdict"), "—"), v.get("confidence") or "", v.get("reasoning") or ""
+
+    if fmt == "csv":
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow([
+            "created_at", "input_type", "claim_or_text", "url", "search_verdict", "verdict_confidence",
+            "verdict_reasoning", "evidence_summary", "language_model_label", "language_model_p_real",
+            "evidence_count", "evidence_sources",
+        ])
+        for row in rows:
+            label, confidence, reasoning = verdict_of(row)
+            evidence = row.get("evidence") or []
+            writer.writerow([
+                row.get("created_at"), row.get("input_type"), (row.get("input_text") or "")[:2000],
+                row.get("input_url") or "", label, confidence, reasoning, row.get("ai_summary") or "",
+                row.get("ml_label") or "", row.get("ml_probability") if row.get("ml_probability") is not None else "",
+                len(evidence), " | ".join(f"{e.get('title')} <{e.get('url')}>" for e in evidence[:8]),
+            ])
+        data = "\ufeff" + buffer.getvalue()
+        return Response(
+            data.encode("utf-8"),
+            mimetype="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="newssearch-history-{stamp}.csv"'},
+        )
+
+    from xml.sax.saxutils import escape as _escape
+
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.platypus import HRFlowable, Paragraph, SimpleDocTemplate, Spacer
+
+    font_dir = ROOT_DIR / "fonts"
+    for family in ("NotoSans", "NotoSansDevanagari", "NotoSansGujarati"):
+        if family not in pdfmetrics.getRegisteredFontNames():
+            pdfmetrics.registerFont(TTFont(family, str(font_dir / f"{family}-Regular.ttf")))
+            pdfmetrics.registerFont(TTFont(f"{family}-Bold", str(font_dir / f"{family}-Bold.ttf")))
+            pdfmetrics.registerFontFamily(family, normal=family, bold=f"{family}-Bold", italic=family, boldItalic=f"{family}-Bold")
+
+    script_runs = re.compile(r"([\u0900-\u097F\u1CD0-\u1CFF\uA8E0-\uA8FF]+(?: +[\u0900-\u097F\u1CD0-\u1CFF\uA8E0-\uA8FF]+)*"
+                             r"|[\u0A80-\u0AFF]+(?: +[\u0A80-\u0AFF]+)*)")
+
+    def escape(text: str) -> str:
+        """Escape for reportlab markup and wrap Hindi/Gujarati runs in fonts that have those glyphs."""
+        parts = []
+        for chunk in script_runs.split(str(text)):
+            if not chunk:
+                continue
+            if re.match(r"[\u0900-\u097F\u1CD0-\u1CFF\uA8E0-\uA8FF]", chunk):
+                parts.append(f"<font name='NotoSansDevanagari'>{_escape(chunk)}</font>")
+            elif re.match(r"[\u0A80-\u0AFF]", chunk):
+                parts.append(f"<font name='NotoSansGujarati'>{_escape(chunk)}</font>")
+            else:
+                parts.append(_escape(chunk))
+        return "".join(parts)
+
+    out = io.BytesIO()
+    doc = SimpleDocTemplate(out, pagesize=A4, leftMargin=18 * mm, rightMargin=18 * mm, topMargin=18 * mm, bottomMargin=18 * mm,
+                            title="NewsSearch analysis history")
+    base = getSampleStyleSheet()
+    h1 = ParagraphStyle("h1", parent=base["Heading1"], fontName="NotoSans-Bold", fontSize=18, spaceAfter=4)
+    h2 = ParagraphStyle("h2", parent=base["Heading3"], fontName="NotoSans-Bold", fontSize=11, spaceBefore=8, spaceAfter=2)
+    body = ParagraphStyle("b", parent=base["BodyText"], fontName="NotoSans", fontSize=9, leading=13)
+    small = ParagraphStyle("s", parent=body, fontSize=8, textColor="#76726E")
+    story = [
+        Paragraph("NewsSearch — analysis history", h1),
+        Paragraph(f"Exported {escape(stamp)} UTC · {len(rows)} analyses · {escape(g.user.get('email') or '')}", small),
+        Spacer(1, 6),
+    ]
+    for row in rows:
+        label, confidence, reasoning = verdict_of(row)
+        story.append(HRFlowable(width="100%", color="#2C2A29", thickness=0.6))
+        story.append(Paragraph(escape(f"{row.get('created_at', '')[:16].replace('T', ' ')} · {row.get('input_type')}"), small))
+        story.append(Paragraph(escape((row.get("source_title") or row.get("input_text") or "")[:500]), h2))
+        story.append(Paragraph(f"<b>Search-based verdict:</b> {escape(label)}" + (f" ({escape(confidence)} confidence)" if confidence else ""), body))
+        if reasoning:
+            story.append(Paragraph(escape(reasoning), body))
+        if row.get("ai_summary"):
+            story.append(Paragraph(f"<b>Evidence summary:</b> {escape(row['ai_summary'])}", body))
+        if row.get("ml_available") and row.get("ml_probability") is not None:
+            story.append(Paragraph(
+                escape(f"Language-pattern signal (experimental, separate from the verdict): P(real) = {row['ml_probability']:.2f}"), small))
+        for item in (row.get("evidence") or [])[:6]:
+            story.append(Paragraph(f"• {escape(item.get('title') or '')} — <font color='#7D846C'>{escape(item.get('url') or '')}</font>", small))
+        story.append(Spacer(1, 6))
+    if not rows:
+        story.append(Paragraph("No analyses in your history.", body))
+    doc.build(story)
+    return Response(
+        out.getvalue(),
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="newssearch-history-{stamp}.pdf"'},
+    )
 
 
 @flask_app.get("/api/notifications")

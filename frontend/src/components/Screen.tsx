@@ -81,7 +81,12 @@ export function AppHeader({
     <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
       <View style={styles.row}>
         {onBack ? (
-          <Pressable testID="header-back-button" onPress={() => router.back()} style={styles.iconSlot} hitSlop={8}>
+          <Pressable
+            testID="header-back-button"
+            onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
+            style={styles.iconSlot}
+            hitSlop={8}
+          >
             <Icon name="chevron-back" size={22} color={colors.onSurface} />
           </Pressable>
         ) : null}

@@ -5,6 +5,8 @@ import pytest
 import requests
 
 def _env(path, key):
+    if os.environ.get(key):
+        return os.environ[key]
     for line in open(path):
         if line.startswith(key + "="):
             return line.split("=", 1)[1].strip().strip('"')

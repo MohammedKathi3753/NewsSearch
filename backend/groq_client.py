@@ -71,7 +71,90 @@ def explain_prediction(claim_excerpt: str, ml_result: dict) -> str | None:
         return None
 
 
-def summarize_evidence(claim_excerpt: str, items: list) -> str | None:
+LANGUAGE_NAMES = {"en": "English", "es": "Spanish", "fr": "French", "gu": "Gujarati", "hi": "Hindi"}
+
+
+def _language_rule(lang: str) -> str:
+    name = LANGUAGE_NAMES.get(lang or "en", "English")
+    if name == "English":
+        return ""
+    return (
+        f"\nWrite your entire answer in {name}. Keep publisher names, record titles and "
+        "quoted ratings exactly as given (do not translate them)."
+    )
+
+
+VERDICTS = ("supported", "contradicted", "mixed", "insufficient")
+CONFIDENCES = ("low", "medium", "high")
+
+
+def assess_claim(claim_excerpt: str, items: list, lang: str = "en") -> dict | None:
+    """Search-based verdict: judge the claim ONLY against the retrieved records.
+
+    Returns {verdict, confidence, reasoning, citations[]} with citations
+    validated against the real record list; anything uncited is downgraded
+    to 'insufficient' so no verdict is ever produced without evidence.
+    """
+    import json
+    import re
+
+    records = []
+    for index, item in enumerate(items, start=1):
+        source = item.get("source") or {}
+        publisher = source.get("publisher") or source.get("domain") or item.get("provider")
+        rating = f" | fact-check rating: {source['rating']}" if source.get("rating") else ""
+        records.append(
+            f"[{index}] ({item.get('kind')}) {item['title']} — {publisher}{rating} — {item.get('snippet') or ''}".strip()
+        )
+    user_prompt = (
+        "Decide whether the retrieved records SUPPORT or CONTRADICT the claim below.\n"
+        "- 'supported': reputable records report the same event/fact as the claim.\n"
+        "- 'contradicted': fact-checks rate this claim false/misleading, or reputable records clearly report the opposite.\n"
+        "- 'mixed': relevant records disagree with each other.\n"
+        "- 'insufficient': no record is directly about this claim. Prefer this whenever unsure.\n"
+        "Only use and cite records that are directly about the same subject and event as the claim; "
+        "never cite a record just because it shares a word with the claim. Cite record numbers.\n"
+        'Respond with ONLY a JSON object: {"verdict": "supported|contradicted|mixed|insufficient", '
+        '"confidence": "low|medium|high", "reasoning": "2-4 sentences citing [n]", "citations": [n, ...]}'
+        + _language_rule(lang)
+        + "\n\n"
+        f"Claim: {claim_excerpt}\n\nRetrieved records:\n" + "\n".join(records) + "\n"
+    )
+    try:
+        raw = _chat(GROUNDING_RULES, user_prompt, max_tokens=700)
+        match = re.search(r"\{.*\}", raw, re.S)
+        data = json.loads(match.group(0) if match else raw)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("groq assess failed: %s", exc)
+        return None
+    verdict = str(data.get("verdict", "")).lower()
+    confidence = str(data.get("confidence", "")).lower()
+    citations = []
+    for value in data.get("citations") or []:
+        try:
+            number = int(value)
+        except (TypeError, ValueError):
+            continue
+        if 1 <= number <= len(items) and number not in citations:
+            citations.append(number)
+    if verdict not in VERDICTS:
+        verdict = "insufficient"
+    if confidence not in CONFIDENCES:
+        confidence = "low"
+    if verdict != "insufficient" and not citations:
+        verdict, confidence = "insufficient", "low"
+    return {
+        "verdict": verdict,
+        "confidence": confidence,
+        "reasoning": str(data.get("reasoning") or "").strip()[:1500],
+        "citations": [
+            {"index": n, "title": items[n - 1]["title"], "url": items[n - 1]["url"], "fingerprint": items[n - 1]["fingerprint"]}
+            for n in citations
+        ],
+    }
+
+
+def summarize_evidence(claim_excerpt: str, items: list, lang: str = "en") -> str | None:
     """Summarize retrieved evidence records with citations, grounded only in them."""
     records = []
     for index, item in enumerate(items, start=1):
@@ -84,7 +167,9 @@ def summarize_evidence(claim_excerpt: str, items: list) -> str | None:
         "Summarize what the following retrieved records say that is relevant to the claim below. "
         "Cite records with their [number]. Only state what the records contain. "
         "If no record is directly relevant, reply exactly: "
-        "\"No directly relevant records were found.\" Do not add any facts of your own.\n\n"
+        "\"No directly relevant records were found.\" Do not add any facts of your own."
+        + _language_rule(lang)
+        + "\n\n"
         f"Claim (excerpt): {claim_excerpt}\n\n"
         "Retrieved records:\n" + "\n".join(records) + "\n"
     )

@@ -4,9 +4,10 @@ import { useRouter } from "expo-router";
 
 import { useSession } from "@/src/hooks/useSession";
 import { fonts, fontSizes, makeStyles, useTheme } from "@/src/theme";
-import { t } from "@/src/i18n";
+import { t, useLocale } from "@/src/i18n";
 
 export default function Index() {
+  useLocale();
   const { initialized, user } = useSession();
   const router = useRouter();
   const { colors } = useTheme();

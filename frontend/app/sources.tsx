@@ -7,9 +7,10 @@ import { Icon } from "@/src/components/Icon";
 import { AppHeader, Screen } from "@/src/components/Screen";
 import { api } from "@/src/lib/api";
 import { fonts, fontSizes, makeStyles, spacing, useTheme } from "@/src/theme";
-import { t } from "@/src/i18n";
+import { t, useLocale } from "@/src/i18n";
 
 export default function SourcesScreen() {
+  useLocale();
   const sourcesQuery = useQuery({ queryKey: ["sources"], queryFn: api.sources });
   const { colors } = useTheme();
   const styles = useStyles();

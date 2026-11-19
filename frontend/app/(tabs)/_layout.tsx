@@ -5,9 +5,10 @@ import { Platform } from "react-native";
 import { Icon } from "@/src/components/Icon";
 import { usesNativeTabs } from "@/src/navigation";
 import { fonts, makeStyles, useTheme } from "@/src/theme";
-import { t } from "@/src/i18n";
+import { t, useLocale } from "@/src/i18n";
 
 function NativeTabBar() {
+  useLocale();
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="analyze">
@@ -31,6 +32,7 @@ function NativeTabBar() {
 }
 
 export default function TabsLayout() {
+  useLocale();
   const { colors } = useTheme();
   const styles = useStyles();
 

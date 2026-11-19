@@ -1,0 +1,40 @@
+{
+  "summary": "Iteration 3 retest of iteration-2 fixes. Backend: 9/9 tests pass (2 Groq analyze calls used: one en, one hi). FIX 1: new rows persisted via the ml_features fallback; list, detail and CSV return evidence_verdict.verdict and lang, with no ai_explanation and nothing left inside ml_features. History badges show 'Likely real'/'Likely fake' for new rows and 'No verdict saved' for old rows ('Not enough evidence' count was 0). FIX 2: share sheet shows share-error-text in 0.8s and hides Create (only Cancel is shown). GET/POST share returns 503 database_update_required. FIX 3: the PDF embeds NotoSansDevanagari and extracted text contains Devanagari. FIX 4: /api/ready returns 200 live and 503 when auth_health is monkeypatched to False. FIX 5: Export and Clear all are 44px tall (EN and ES); language rows are 44px and readable; the low-reliability warning is visible; History dates switch to the Spanish locale and back to English. One new bug: header-back-button on /reset-password does nothing on a direct load such as an email link (GO_BACK not handled).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/analyze", "issue": "Fallback insert retries on ANY ApiError (network/RLS/etc.), not only on a missing column (PGRST204). Unrelated failures get a second insert attempt and extra latency. Reference: /app/backend/server.py:256"}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "AppHeader back button on reset-password", "issue": "router.back() is a no-op when there is no navigation history. This is the real case for the password-reset email link. Console: \"The action 'GO_BACK' was not handled by any navigator\". The user is stuck on the page. Reference: /app/frontend/src/components/Screen.tsx:84", "testID": "header-back-button", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Analysis details", "issues": ["Created date uses new Date().toLocaleString() (browser locale), so it stays '11/19/2026, 12:46:39 PM' when the app language is Spanish. Reference: /app/frontend/src/components/AnalysisView.tsx:31"]},
+      {"screen": "History", "issues": ["Date format is hard-coded 'MMM D, YYYY HH:mm'. Month names are localized ('nov 19, 2026'), but the order stays English. Consider dayjs localizedFormat ('lll') for es/fr/hi/gu. Reference: /app/frontend/app/(tabs)/history.tsx:119"]},
+      {"screen": "Share sheet", "issues": ["The error message shown to end users includes developer instructions ('Run supabase/002_verdict_share.sql in the Supabase SQL Editor'). Consider a user-friendly message."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter3_fixes.py", "/app/test_reports/pytest/pytest_iter3.xml"],
+  "action_items": [
+    "Fix header-back-button: use router.canGoBack() ? router.back() : router.replace('/sign-in' or '/analyze') (Screen.tsx:84). This affects reset-password from the email link and any deep-linked screen.",
+    "Use the app locale for the Analysis details date (AnalysisView.tsx:31), e.g. dayjs(...).format('lll') with the localizedFormat plugin. Consider the same for History.",
+    "Narrow the analyze fallback-insert condition to the missing-column error (server.py:256).",
+    "Still pending (expected): apply supabase/002_verdict_share.sql in Supabase so that sharing works."
+  ],
+  "critical_code_review_comments": [
+    "backend/.env only has MONGO_URL/DB_NAME. SUPABASE_*/GROQ_API_KEY reach gunicorn only through the process environment. The test helper read them from .env and crashed, so I changed tests/test_newssearch_api.py::_env to prefer os.environ.",
+    "PDF also embeds Helvetica (reportlab default for some element); harmless. The Gujarati font path was not exercised with live data (fonts are present in /app/backend/fonts).",
+    "ShareSheet handles the error state correctly with retry:false (statusQuery). Create is hidden on error."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter3_fixes.py (new)", "/app/backend/tests/test_newssearch_api.py (_env prefers os.environ)"],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "~90% (all 5 fix areas verified; back button on reset-password broken on direct load)"},
+  "seed_data_creation": "Created 2 TEST_ analyses for tester.newssearch (ids 2434a4fd..., 72c5298b...). Both were deleted after the UI checks and confirmed with GET 404.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run backend tests with -n0 (pytest.ini adds xdist). Export SUPABASE_* from the gunicorn process env (/proc/<pid>/environ) or rely on the patched _env. test_iter3_fixes.py makes 2 Groq analyze calls; set ITER3_CLEANUP=1 to delete the created rows automatically. Migration 002 is still NOT applied, so share endpoints return 503 by design. iteration_2.json was never written; only pytest_iter2.xml exists.",
+  "rca_of_issue": "header-back-button: AppHeader always calls router.back(). When /reset-password is opened from an email link (fresh load, empty stack), expo-router has nothing to pop, so GO_BACK goes unhandled. Repro: open /reset-password directly, tap the back chevron, and the URL stays the same. Mitigation: fall back to router.replace when canGoBack() is false."
+}

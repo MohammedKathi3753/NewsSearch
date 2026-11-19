@@ -1,15 +1,17 @@
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
-import { Link, useRouter } from "expo-router";
+import { Link, useLocalSearchParams, useRouter } from "expo-router";
 
 import { AppButton } from "@/src/components/AppButton";
 import { AppHeader, Screen } from "@/src/components/Screen";
 import { TextField } from "@/src/components/TextField";
 import { useSession } from "@/src/hooks/useSession";
 import { fonts, fontSizes, makeStyles, spacing } from "@/src/theme";
-import { t } from "@/src/i18n";
+import { t, useLocale } from "@/src/i18n";
 
 export default function SignInScreen() {
+  useLocale();
+  const { next } = useLocalSearchParams<{ next?: string }>();
   const { configured, signIn } = useSession();
   const router = useRouter();
   const styles = useStyles();
@@ -32,7 +34,8 @@ export default function SignInScreen() {
       setError(result.error);
       return;
     }
-    router.replace("/analyze");
+    const safeNext = typeof next === "string" && /^\/shared\/[A-Za-z0-9_-]+$/.test(next) ? next : null;
+    router.replace((safeNext ?? "/analyze") as never);
   };
 
   return (
@@ -77,6 +80,11 @@ export default function SignInScreen() {
               testID="signin-submit-button"
             />
           </View>
+          <Link href="/forgot-password" asChild>
+            <Pressable testID="signin-forgot-link">
+              <Text style={styles.link}>{t("auth.forgotLink")}</Text>
+            </Pressable>
+          </Link>
           <Link href="/sign-up" replace asChild>
             <Pressable testID="signin-signup-link">
               <Text style={styles.link}>{t("auth.switchToSignUp")}</Text>

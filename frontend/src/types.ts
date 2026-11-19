@@ -19,28 +19,32 @@ export interface EvidenceItem {
   };
 }
 
-export interface FeatureContribution {
-  feature: string;
-  contribution: number;
-  direction: "real" | "fake";
-}
-
 export interface MlTrack {
   available: boolean;
   reason?: string;
   label?: "REAL" | "FAKE";
   probabilities?: { real: number; fake: number };
   confidence?: number;
-  top_features?: FeatureContribution[];
+  reliability?: "low" | "normal";
   model_version?: string | null;
   trained_at?: string | null;
-  metrics?: Record<string, number> | null;
 }
 
 export interface AiBlock {
   available: boolean;
   text: string | null;
   reason: string | null;
+}
+
+export type VerdictValue = "supported" | "contradicted" | "mixed" | "insufficient";
+
+export interface EvidenceVerdict {
+  available: boolean;
+  reason?: string | null;
+  verdict?: VerdictValue;
+  confidence?: "low" | "medium" | "high";
+  reasoning?: string;
+  citations?: { index: number; title: string; url: string; fingerprint: string }[];
 }
 
 export interface ProviderStatusResult {
@@ -57,7 +61,7 @@ export interface AnalysisResult {
   persisted: boolean;
   input: { type: "text" | "url"; text: string; url: string | null; source_title: string | null };
   ml_track: MlTrack;
-  ai_explanation: AiBlock;
+  evidence_verdict: EvidenceVerdict;
   evidence_track: {
     summary: AiBlock;
     items: EvidenceItem[];
@@ -66,9 +70,9 @@ export interface AnalysisResult {
   };
 }
 
+/** Stored analysis row (history detail and shared snapshot share this shape). */
 export interface AnalysisDetail {
-  id: string;
-  user_id: string;
+  id?: string;
   input_type: "text" | "url";
   input_text: string;
   input_url: string | null;
@@ -76,30 +80,18 @@ export interface AnalysisDetail {
   ml_available: boolean;
   ml_label: "REAL" | "FAKE" | null;
   ml_probability: number | null;
-  ml_features: { top: FeatureContribution[] } | null;
+  ml_features: { reliability?: "low" | "normal" } | null;
   ml_model_version: string | null;
   evidence: EvidenceItem[];
-  ai_explanation: string | null;
   ai_summary: string | null;
+  evidence_verdict?: Omit<EvidenceVerdict, "available"> | null;
+  lang?: string;
   providers_used: string[];
   providers_failed: ProviderStatusResult[];
   created_at: string;
 }
 
-export interface AnalysisListItem {
-  id: string;
-  input_type: "text" | "url";
-  input_text: string;
-  input_url: string | null;
-  source_title: string | null;
-  ml_available: boolean;
-  ml_label: "REAL" | "FAKE" | null;
-  ml_probability: number | null;
-  evidence: EvidenceItem[];
-  providers_used: string[];
-  providers_failed: ProviderStatusResult[];
-  created_at: string;
-}
+export type AnalysisListItem = AnalysisDetail & { id: string };
 
 export interface NotificationItem {
   id: string;

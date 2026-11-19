@@ -11,7 +11,7 @@ export function EvidenceRow({ item, index }: { item: EvidenceItem; index: number
   const { colors } = useTheme();
   const styles = useStyles();
   const date =
-    item.published_at && dayjs(item.published_at).isValid() ? dayjs(item.published_at).format("MMM D, YYYY") : null;
+    item.published_at && dayjs(item.published_at).isValid() ? dayjs(item.published_at).format("ll") : null;
   const metaParts = [item.source?.publisher, item.source?.domain, date, `via ${item.provider}`].filter(Boolean);
   const open = () => {
     Linking.openURL(item.url).catch(() => {});

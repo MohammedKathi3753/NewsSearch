@@ -12,6 +12,7 @@ import { ErrorBoundary } from "@/src/components/error-boundary";
 import { ToastProvider } from "@/src/components/Toast";
 import { queryClient } from "@/src/query-client";
 import { SessionProvider } from "@/src/hooks/useSession";
+import { LocaleProvider } from "@/src/i18n";
 import { fonts, fontSizes } from "@/src/theme";
 
 // Disable logbox errors etc so that users can see the app
@@ -53,6 +54,7 @@ export default function RootLayout() {
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <KeyboardProvider>
+            <LocaleProvider>
             <SessionProvider>
               <StatusBar style="dark" />
               {fontsLoaded ? (
@@ -63,6 +65,7 @@ export default function RootLayout() {
                 <BootSplash />
               )}
             </SessionProvider>
+            </LocaleProvider>
           </KeyboardProvider>
         </QueryClientProvider>
       </ErrorBoundary>

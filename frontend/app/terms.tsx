@@ -2,10 +2,10 @@ import { Text, View } from "react-native";
 
 import { AppHeader, Screen } from "@/src/components/Screen";
 import { fonts, fontSizes, makeStyles, spacing } from "@/src/theme";
-import { legalContent } from "@/src/i18n/en";
-import { t } from "@/src/i18n";
+import { getLegal, t, useLocale } from "@/src/i18n";
 
 export default function TermsScreen() {
+  useLocale();
   const styles = useStyles();
   return (
     <View style={styles.root} testID="terms-screen">
@@ -13,7 +13,7 @@ export default function TermsScreen() {
       <Screen withTopInset={false}>
         <View testID="terms-content">
           <Text style={styles.updated}>{t("legal.updated")}</Text>
-          {legalContent.terms.map((section) => (
+          {getLegal("terms").map((section) => (
             <View key={section.heading} style={styles.section}>
               <Text style={styles.heading}>{section.heading}</Text>
               <Text style={styles.body}>{section.body}</Text>

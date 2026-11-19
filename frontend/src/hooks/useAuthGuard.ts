@@ -1,19 +1,21 @@
 import { useEffect } from "react";
-import { useRouter } from "expo-router";
+import { usePathname, useRouter } from "expo-router";
 
 import { useSession } from "./useSession";
 
-/** Redirects to sign-in when the session is missing. Returns true when the
- * signed-in user content may render/queries may run. */
+/** Redirects to sign-in when the session is missing (remembering where the
+ * user was headed). Returns true when signed-in content may render. */
 export function useAuthGuard() {
   const { initialized, user, configured } = useSession();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (initialized && !user) {
-      router.replace("/sign-in");
+      const next = pathname?.startsWith("/shared/") ? pathname : undefined;
+      router.replace(next ? { pathname: "/sign-in", params: { next } } : "/sign-in");
     }
-  }, [initialized, user, router]);
+  }, [initialized, user, router, pathname]);
 
   return initialized && Boolean(user) && configured;
 }

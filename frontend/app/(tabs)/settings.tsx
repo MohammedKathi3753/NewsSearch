@@ -12,9 +12,10 @@ import { useAuthGuard } from "@/src/hooks/useAuthGuard";
 import { useSession } from "@/src/hooks/useSession";
 import { api } from "@/src/lib/api";
 import { fonts, fontSizes, makeStyles, spacing } from "@/src/theme";
-import { t } from "@/src/i18n";
+import { SUPPORTED_LOCALES, t, useLocale } from "@/src/i18n";
 
 export default function SettingsScreen() {
+  const { locale, setLocale } = useLocale();
   const ready = useAuthGuard();
   const { user, configured, signOut } = useSession();
   const router = useRouter();
@@ -69,6 +70,25 @@ export default function SettingsScreen() {
         <View style={styles.card} testID="settings-account-card">
           <Text style={styles.cardTitle}>{t("settings.signedInAs")}</Text>
           <Text style={styles.cardBody}>{meQuery.data?.user.email ?? user?.email ?? "—"}</Text>
+        </View>
+
+        <SectionHeader title={t("settings.languageSection")} />
+        <View style={styles.card} testID="settings-language-card">
+          {SUPPORTED_LOCALES.map((option) => {
+            const selected = option.code === locale;
+            return (
+              <Pressable
+                key={option.code}
+                style={[styles.langRow, selected && styles.langRowSelected]}
+                onPress={() => setLocale(option.code)}
+                testID={`settings-language-${option.code}`}
+              >
+                <Text style={[styles.langLabel, selected && styles.langLabelSelected]}>{option.label}</Text>
+                {selected ? <Text style={styles.langCheck}>✓</Text> : null}
+              </Pressable>
+            );
+          })}
+          <Text style={styles.hint}>{t("settings.languageHint")}</Text>
         </View>
 
         <SectionHeader title={t("settings.statusSection")} />
@@ -173,4 +193,18 @@ const useStyles = makeStyles((colors) => ({
   linkLabel: { fontFamily: fonts.semiBold, fontSize: fontSizes.base, color: colors.info },
   chevron: { fontFamily: fonts.bold, fontSize: fontSizes.lg, color: colors.muted },
   signOutWrap: { marginTop: spacing.xl },
+  langRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    minHeight: 44,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.divider,
+  },
+  langRowSelected: { borderColor: colors.border, backgroundColor: colors.brandTertiary },
+  langLabel: { fontFamily: fonts.semiBold, fontSize: fontSizes.base, color: colors.onSurface },
+  langLabelSelected: { color: colors.onSurface },
+  langCheck: { fontFamily: fonts.bold, fontSize: fontSizes.base, color: colors.onSurface },
+  hint: { fontFamily: fonts.regular, fontSize: fontSizes.sm, color: colors.muted, lineHeight: 19, marginTop: spacing.xs },
 }));

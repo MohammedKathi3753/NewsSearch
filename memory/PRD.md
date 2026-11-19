@@ -14,6 +14,15 @@ Build NewsSearch, a cloud-ready hybrid fake news analysis system for everyday re
 ## Implemented (2026-10-28)
 - All above; tested iteration_1 (28/30 backend, all frontend flows). Fixed: CORS regex anchoring + methods, HTML in snippets, detail title, auth link stacking, design spacing/duplicate labels, PolitiFact feed URL, relevance filter.
 
+## Implemented (2026-11-19) — iteration 2/3
+- Search-based verdict (supported/contradicted/mixed/insufficient) from Groq grounded ONLY in retrieved records with validated citations; short claims searched verbatim. ML model demoted to "Language-pattern signal (experimental)" (no features/explanation, low-reliability flag for <80 words).
+- Share links (signed-in viewers only): shared_analyses snapshot table, POST/GET/DELETE /api/analyses/<id>/share, GET /api/shared/<token> (service-role lookup), /shared/[token] screen, sign-in `next` return.
+- Forgot/reset password (Supabase resetPasswordForEmail; web detectSessionInUrl, native deep link setSession/exchangeCode).
+- i18n: en/es/fr/gu/hi (machine-translated by scripts/translate_i18n.py), device language + Settings switch, dayjs locales, AI verdict/summary in chosen language.
+- History export: /api/export?format=csv|pdf (reportlab + Noto Sans Devanagari/Gujarati with HarfBuzz shaping).
+- Fallback: without migration 002 the verdict/lang are stored in ml_features and normalized on read.
+- PENDING USER ACTION: run supabase/002_verdict_share.sql (sharing returns 503 until then); add Redirect URLs (<preview>/reset-password, frontend://reset-password).
+
 ## Backlog
 - P1: Additional locales (UI copy ready in `src/i18n`); AFP/Africa Check feed URLs once confirmed; GDELT backoff (frequently 429).
 - P1: Password reset email flow.

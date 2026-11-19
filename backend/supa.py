@@ -103,6 +103,14 @@ def _rest(method: str, key: str, token: str, table: str, params=None, json_body=
         timeout=15,
     )
     if response.status_code >= 400:
+        if response.status_code == 404 and "PGRST205" in response.text:
+            raise ApiError(
+                "database_update_required",
+                503,
+                "Sharing is not switched on yet. The app owner needs to finish a one-time database update.",
+            )
+        if response.status_code == 400 and "PGRST204" in response.text:
+            raise ApiError("schema_column_missing", 400, "Database is missing a column.")
         raise ApiError("database_request_failed", 502, f"Database request failed ({response.status_code}).")
     if not response.content:
         return []

@@ -7,9 +7,10 @@ import { AppHeader, Screen } from "@/src/components/Screen";
 import { TextField } from "@/src/components/TextField";
 import { useSession } from "@/src/hooks/useSession";
 import { fonts, fontSizes, makeStyles, spacing } from "@/src/theme";
-import { t } from "@/src/i18n";
+import { t, useLocale } from "@/src/i18n";
 
 export default function SignUpScreen() {
+  useLocale();
   const { configured, signUp } = useSession();
   const router = useRouter();
   const styles = useStyles();

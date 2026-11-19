@@ -14,9 +14,10 @@ import { useToast } from "@/src/components/Toast";
 import { useAuthGuard } from "@/src/hooks/useAuthGuard";
 import { api } from "@/src/lib/api";
 import { fonts, fontSizes, makeStyles, spacing, useTheme } from "@/src/theme";
-import { t } from "@/src/i18n";
+import { t, useLocale } from "@/src/i18n";
 
 export default function DiscoverScreen() {
+  useLocale();
   useAuthGuard();
   const router = useRouter();
   const { colors } = useTheme();

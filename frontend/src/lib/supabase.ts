@@ -11,6 +11,10 @@ const supabaseKey =
 
 export const supabaseConfigured = Boolean(supabaseUrl && supabaseKey);
 
+// Captured before supabase-js consumes (and clears) an auth redirect on web.
+export const initialAuthUrl: string | null =
+  Platform.OS === "web" && typeof window !== "undefined" ? window.location.href : null;
+
 // Placeholder values keep the client constructible before real keys exist;
 // auth calls simply fail until the project is configured.
 export const supabase = createClient(
@@ -29,7 +33,7 @@ export const supabase = createClient(
       },
       autoRefreshToken: true,
       persistSession: true,
-      detectSessionInUrl: false,
+      detectSessionInUrl: Platform.OS === "web",
     },
   },
 );

@@ -9,7 +9,7 @@ import type {
   ReadyChecks,
 } from "@/src/types";
 
-const API_BASE = `${process.env.EXPO_PUBLIC_BACKEND_URL ?? ""}/api`;
+export const API_BASE = `${process.env.EXPO_PUBLIC_BACKEND_URL ?? ""}/api`;
 
 export class ApiError extends Error {
   code: string;
@@ -53,10 +53,14 @@ export const api = {
   ready: () => request<ReadyChecks>("/ready", { auth: false }),
   me: () =>
     request<{ user: { id: string; email?: string | null }; retention: { max_history: number; days: number } }>("/me"),
-  analyze: (payload: { text?: string; url?: string }) =>
+  analyze: (payload: { text?: string; url?: string; lang?: string }) =>
     request<AnalysisResult>("/analyze", { method: "POST", body: payload }),
   analyses: () => request<AnalysisListItem[]>("/analyses?limit=50"),
   analysis: (id: string) => request<AnalysisDetail>(`/analyses/${id}`),
+  shareStatus: (id: string) => request<{ shared: boolean; token: string | null }>(`/analyses/${id}/share`),
+  createShare: (id: string) => request<{ shared: boolean; token: string }>(`/analyses/${id}/share`, { method: "POST" }),
+  deleteShare: (id: string) => request<{ shared: boolean }>(`/analyses/${id}/share`, { method: "DELETE" }),
+  shared: (token: string) => request<{ analysis: AnalysisDetail; shared_at: string }>(`/shared/${token}`),
   deleteAnalysis: (id: string) => request<{ ok: boolean }>(`/analyses/${id}`, { method: "DELETE" }),
   clearAnalyses: () => request<{ ok: boolean }>("/analyses", { method: "DELETE" }),
   notifications: () => request<NotificationItem[]>("/notifications"),

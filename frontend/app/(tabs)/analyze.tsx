@@ -9,13 +9,17 @@ import { EvidenceTrackCard } from "@/src/components/EvidenceTrackCard";
 import { Icon } from "@/src/components/Icon";
 import { MlTrackCard } from "@/src/components/MlTrackCard";
 import { AppHeader, Screen } from "@/src/components/Screen";
+import { ShareSheet } from "@/src/components/ShareSheet";
 import { TextField } from "@/src/components/TextField";
+import { VerdictCard } from "@/src/components/VerdictCard";
 import { useAuthGuard } from "@/src/hooks/useAuthGuard";
 import { api } from "@/src/lib/api";
 import { fonts, fontSizes, makeStyles, spacing, useTheme } from "@/src/theme";
-import { t } from "@/src/i18n";
+import { getLocale, t, useLocale } from "@/src/i18n";
 
 export default function AnalyzeScreen() {
+  useLocale();
+  const [shareOpen, setShareOpen] = useState(false);
   const ready = useAuthGuard();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -45,7 +49,9 @@ export default function AnalyzeScreen() {
   const submit = () => {
     if (mutation.isPending) return;
     if (mode === "url" ? !url.trim() : !claim.trim()) return;
-    mutation.mutate(mode === "url" ? { url: url.trim() } : { text: claim.trim() });
+    mutation.mutate(
+      mode === "url" ? { url: url.trim(), lang: getLocale() } : { text: claim.trim(), lang: getLocale() },
+    );
   };
 
   return (
@@ -114,12 +120,16 @@ export default function AnalyzeScreen() {
         {result ? (
           <View style={styles.results}>
             {!result.persisted ? <Text style={styles.notSaved}>{t("analyze.notSaved")}</Text> : null}
-            <MlTrackCard ml={result.ml_track} explanation={result.ai_explanation} />
+            <VerdictCard verdict={result.evidence_verdict} />
             <EvidenceTrackCard
               items={result.evidence_track.items}
               summary={result.evidence_track.summary}
               providersFailed={result.evidence_track.providers_failed}
             />
+            <MlTrackCard ml={result.ml_track} />
+            {result.id ? (
+              <AppButton label={t("share.button")} variant="outline" onPress={() => setShareOpen(true)} testID="analyze-share-button" />
+            ) : null}
             <Text style={styles.separationNote} testID="analyze-separation-note">
               {t("analyze.separationNote")}
             </Text>
@@ -131,6 +141,7 @@ export default function AnalyzeScreen() {
           </View>
         )}
       </Screen>
+      {result?.id ? <ShareSheet analysisId={result.id} visible={shareOpen} onClose={() => setShareOpen(false)} /> : null}
     </View>
   );
 }

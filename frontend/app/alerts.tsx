@@ -10,9 +10,10 @@ import { AppHeader } from "@/src/components/Screen";
 import { useAuthGuard } from "@/src/hooks/useAuthGuard";
 import { api } from "@/src/lib/api";
 import { fonts, fontSizes, makeStyles, spacing, useTheme } from "@/src/theme";
-import { t } from "@/src/i18n";
+import { t, useLocale } from "@/src/i18n";
 
 export default function AlertsScreen() {
+  useLocale();
   const ready = useAuthGuard();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -67,7 +68,7 @@ export default function AlertsScreen() {
           >
             <View style={styles.topRow}>
               {!item.read ? <View style={styles.unreadDot} testID={`alerts-unread-${item.id}`} /> : null}
-              <Text style={styles.date}>{dayjs(item.created_at).format("MMM D, YYYY HH:mm")}</Text>
+              <Text style={styles.date}>{dayjs(item.created_at).format("lll")}</Text>
             </View>
             <Text style={styles.title}>{item.title}</Text>
             <Text style={styles.body} numberOfLines={2}>

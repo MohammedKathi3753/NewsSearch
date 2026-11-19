@@ -55,7 +55,7 @@ export const en: Record<string, string> = {
   "analyze.emptyInput": "Enter a claim, paste article text, or add an article link to begin.",
   "analyze.hintTitle": "How it works",
   "analyze.hintBody":
-    "NewsSearch runs two separate checks: a statistical model that looks at language patterns, and a review of records retrieved from worldwide fact-checking and news providers. They are shown separately — never merged into a single verdict.",
+    "NewsSearch searches worldwide fact-checkers and news providers for your claim and gives a verdict based only on the records it finds, each one cited. A separate writing-style model is shown for reference only and is never part of the verdict.",
   "analyze.mlTrackTitle": "Automated model signal",
   "analyze.mlTrackSubtitle": "Statistical language-pattern classification",
   "analyze.mlUnavailable": "The baseline model is not available right now. The evidence review still works.",
@@ -75,10 +75,77 @@ export const en: Record<string, string> = {
   "analyze.summaryUnavailable": "AI summary is unavailable right now.",
   "analyze.noEvidence": "No matching records were retrieved from providers.",
   "analyze.providerFailureNote": "Some providers were unavailable:",
-  "analyze.evidenceFooter": "External records are shown for your own review. This is not a verdict.",
-  "analyze.separationNote": "Model signal and external evidence are shown separately. NewsSearch does not combine them into a verdict.",
+  "analyze.evidenceFooter": "All retrieved records are listed so you can check the verdict yourself.",
+  "analyze.separationNote": "The verdict comes only from the retrieved sources. The language-pattern signal is shown separately and is never part of the verdict.",
   "analyze.notSaved": "Analysis completed but not saved to history.",
   "analyze.persistedNote": "Saved to your history.",
+
+  // Search-based verdict
+  "verdict.title": "Search-based verdict",
+  "verdict.subtitle": "Decided only from the fact-checks and news records found for this claim",
+  "verdict.supported": "Likely real",
+  "verdict.supportedBody": "Reputable sources report the same thing.",
+  "verdict.contradicted": "Likely fake",
+  "verdict.contradictedBody": "Fact-checkers or reputable sources contradict it.",
+  "verdict.mixed": "Mixed evidence",
+  "verdict.mixedBody": "Relevant sources disagree with each other.",
+  "verdict.insufficient": "Not enough evidence",
+  "verdict.insufficientBody": "No record found is directly about this claim. Treat it as unverified.",
+  "verdict.confidence": "Confidence",
+  "verdict.conf_low": "Low",
+  "verdict.conf_medium": "Medium",
+  "verdict.conf_high": "High",
+  "verdict.citedSources": "Cited sources",
+  "verdict.unavailable": "The search-based verdict is unavailable right now.",
+  "verdict.aiNote": "Written by AI only from the records listed in this analysis. Always open the sources.",
+
+  // Language-pattern model (secondary)
+  "ml.title": "Language-pattern signal (experimental)",
+  "ml.subtitle": "A writing-style model, separate from the verdict. It does not check facts.",
+  "ml.lowReliability": "Low reliability: this model was trained on full-length articles and often mislabels short claims.",
+  "ml.styleReal": "Writing style resembles real news",
+  "ml.styleFake": "Writing style resembles fabricated news",
+
+  // Sharing
+  "share.button": "Share",
+  "share.title": "Share this analysis",
+  "share.body": "Signed-in NewsSearch users who open this link can view a snapshot of this analysis.",
+  "share.create": "Create share link",
+  "share.send": "Send link",
+  "share.stop": "Stop sharing",
+  "share.stopped": "Sharing turned off.",
+  "share.created": "Share link ready.",
+  "share.failed": "Could not create the share link.",
+  "shared.title": "Shared analysis",
+  "shared.notice": "Shared by a NewsSearch user. Snapshot from {date}.",
+  "shared.notFound": "This shared analysis no longer exists or sharing was turned off.",
+
+  // Password reset
+  "auth.forgotLink": "Forgot password?",
+  "forgot.title": "Reset your password",
+  "forgot.body": "Enter your account email and we will send you a link to choose a new password.",
+  "forgot.submit": "Send reset link",
+  "forgot.sent": "If an account exists for that email, a reset link is on its way. Check your inbox.",
+  "forgot.back": "Back to sign in",
+  "reset.title": "Choose a new password",
+  "reset.waiting": "Opening your reset link…",
+  "reset.invalid": "This reset link is invalid or has expired. Request a new one.",
+  "reset.newPassword": "New password",
+  "reset.submit": "Update password",
+  "reset.done": "Password updated. You are signed in.",
+  "reset.requestNew": "Request a new link",
+
+  // Export
+  "history.export": "Export",
+  "history.noVerdict": "No verdict saved",
+  "history.exportCsv": "Spreadsheet (CSV)",
+  "history.exportPdf": "PDF report",
+  "history.exportReady": "Export ready.",
+  "history.exportFailed": "Export failed.",
+
+  // Language
+  "settings.languageSection": "Language",
+  "settings.languageHint": "AI-written verdicts and summaries for new analyses use this language. Source titles stay in their original language.",
   "analysis.detailTitle": "Analysis details",
 
   // Kinds
@@ -169,7 +236,7 @@ export const legalContent: {
     },
     {
       heading: "2. What NewsSearch does",
-      body: "NewsSearch runs two independent checks on text you submit: a statistical language-pattern model, and a retrieval of public records from third-party fact-checking and news providers. The two tracks are always presented separately. NewsSearch does not issue a combined verdict and does not tell you what is true or false.",
+      body: "NewsSearch searches public records from third-party fact-checking and news providers and gives a search-based verdict that is grounded only in the records it retrieves, with citations. A separate statistical writing-style model is shown for reference and never contributes to the verdict. NewsSearch does not guarantee what is true or false.",
     },
     {
       heading: "3. No guarantee of accuracy",
