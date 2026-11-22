@@ -70,10 +70,14 @@ def _cors_origins():
     ):
         origins.add(candidate)
     try:
-        frontend_env = Path("/app/frontend/.env").read_text()
-        match = re.search(r"EXPO_PACKAGER_PROXY_URL=\"?([^\"\n]+)", frontend_env)
-        if match:
-            origins.add(match.group(1).strip().rstrip("/"))
+        frontend_env_path = Path(__file__).resolve().parent.parent / "frontend" / ".env"
+        if not frontend_env_path.exists():
+            frontend_env_path = Path("/app/frontend/.env")
+        if frontend_env_path.exists():
+            frontend_env = frontend_env_path.read_text(encoding="utf-8")
+            match = re.search(r"EXPO_PACKAGER_PROXY_URL=\"?([^\"\n]+)", frontend_env)
+            if match:
+                origins.add(match.group(1).strip().rstrip("/"))
     except OSError:
         pass
     # Platform hosting domains of this app (web preview + deployment).
@@ -657,4 +661,5 @@ else:
 
 
 if __name__ == "__main__":
-    flask_app.run(host="0.0.0.0", port=8001, threaded=True)
+    port = int(os.environ.get("PORT", 8001))
+    flask_app.run(host="0.0.0.0", port=port, threaded=True)

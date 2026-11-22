@@ -9,7 +9,7 @@ import type {
   ReadyChecks,
 } from "@/src/types";
 
-export const API_BASE = `${process.env.EXPO_PUBLIC_BACKEND_URL ?? ""}/api`;
+export const API_BASE = `${process.env.EXPO_PUBLIC_BACKEND_URL || "http://localhost:8001"}/api`;
 
 export class ApiError extends Error {
   code: string;

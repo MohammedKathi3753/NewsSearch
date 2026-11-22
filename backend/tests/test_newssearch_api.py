@@ -4,17 +4,34 @@ import re
 import pytest
 import requests
 
+from pathlib import Path
+
+def _find_env(rel_name):
+    candidates = [
+        Path(__file__).resolve().parent.parent / rel_name,
+        Path(__file__).resolve().parent.parent.parent / rel_name,
+        Path(f"/app/{rel_name}"),
+        Path(rel_name),
+    ]
+    for c in candidates:
+        if c.exists():
+            return str(c)
+    return str(candidates[0])
+
 def _env(path, key):
     if os.environ.get(key):
         return os.environ[key]
-    for line in open(path):
-        if line.startswith(key + "="):
-            return line.split("=", 1)[1].strip().strip('"')
-    return None
+    resolved = _find_env(path) if not os.path.isabs(path) or not os.path.exists(path) else path
+    if os.path.exists(resolved):
+        for line in open(resolved, encoding="utf-8", errors="ignore"):
+            if line.startswith(key + "="):
+                return line.split("=", 1)[1].strip().strip('"').strip("'")
+    return ""
 
-BASE_URL = (os.environ.get("EXPO_PUBLIC_BACKEND_URL") or _env("/app/frontend/.env", "EXPO_PUBLIC_BACKEND_URL")).rstrip("/")
-SUPA_URL = re.sub(r"/rest/v1/?$", "", _env("/app/backend/.env", "SUPABASE_URL").rstrip("/"))
-SUPA_KEY = _env("/app/backend/.env", "SUPABASE_PUBLISHABLE_KEY")
+BASE_URL = (os.environ.get("EXPO_PUBLIC_BACKEND_URL") or _env("frontend/.env", "EXPO_PUBLIC_BACKEND_URL") or "http://localhost:8001").rstrip("/")
+_raw_supa = _env("backend/.env", "SUPABASE_URL") or _env("frontend/.env", "EXPO_PUBLIC_SUPABASE_URL") or ""
+SUPA_URL = re.sub(r"/rest/v1/?$", "", _raw_supa.rstrip("/"))
+SUPA_KEY = _env("backend/.env", "SUPABASE_PUBLISHABLE_KEY") or _env("frontend/.env", "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY") or ""
 PW = "NewsSearch#2026"
 
 

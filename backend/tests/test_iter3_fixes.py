@@ -24,7 +24,13 @@ def cleanup(h1):
     yield
     # ids kept for UI check; set ITER3_CLEANUP=1 to delete immediately
     import os
-    open("/tmp/iter3_ids.txt", "w").write("\n".join(CREATED))
+    import tempfile
+    from pathlib import Path
+    tmp_path = Path(tempfile.gettempdir()) / "iter3_ids.txt"
+    try:
+        tmp_path.write_text("\n".join(CREATED))
+    except OSError:
+        pass
     if os.environ.get("ITER3_CLEANUP") == "1":
         for aid in CREATED:
             requests.delete(f"{BASE_URL}/api/analyses/{aid}", headers=h1, timeout=20)
