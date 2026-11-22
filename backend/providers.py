@@ -22,8 +22,8 @@ import requests
 
 log = logging.getLogger("newssearch.providers")
 
-USER_AGENT = "NewsSearch/1.0 (fact-check discovery; respects provider terms)"
-REQUEST_TIMEOUT = (4, 10)
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+REQUEST_TIMEOUT = (4, 12)
 MAX_FAILS = 3
 COOLDOWN_SECONDS = 600
 
@@ -165,9 +165,10 @@ class GdeltProvider:
         return True
 
     def fetch(self, query):
+        clean_q = " ".join(re.findall(r"[\w]+", query or ""))[:80] or "news"
         response = _http_get(
             "https://api.gdeltproject.org/api/v2/doc/doc",
-            params={"query": query, "mode": "artlist", "maxrecords": "50", "format": "json", "timespan": "3d", "sort": "datedesc"},
+            params={"query": clean_q, "mode": "artlist", "maxrecords": "30", "format": "json", "timespan": "7d", "sort": "datedesc"},
         )
         try:
             data = response.json()
@@ -203,7 +204,8 @@ class GoogleNewsProvider:
         return True
 
     def fetch(self, query):
-        url = f"https://news.google.com/rss/search?q={quote_plus(query)}&hl=en-US&gl=US&ceid=US:en"
+        clean_q = " ".join(re.findall(r"[\w]+", query or ""))[:150] or "news"
+        url = f"https://news.google.com/rss/search?q={quote_plus(clean_q)}&hl=en-US&gl=US&ceid=US:en"
         return _fetch_rss(self.name, self.kind, url, "Google News")
 
 
@@ -274,13 +276,16 @@ class GoogleFactCheckProvider:
     requires_key = True
     key_env = "GOOGLE_FACTCHECK_API_KEY"
 
+    def _get_key(self):
+        return os.environ.get("GOOGLE_FACTCHECK_API_KEY") or os.environ.get("GOOGLE_FACT_CHECK_API_KEY") or ""
+
     def available(self):
-        return bool(os.environ.get(self.key_env))
+        return bool(self._get_key())
 
     def fetch(self, query):
         response = _http_get(
             "https://factchecktools.googleapis.com/v1alpha1/claims:search",
-            params={"query": query, "languageCode": "en", "pageSize": "20", "key": os.environ[self.key_env]},
+            params={"query": query, "languageCode": "en", "pageSize": "20", "key": self._get_key()},
         )
         try:
             data = response.json()
@@ -317,14 +322,17 @@ class NewsApiProvider:
     requires_key = True
     key_env = "NEWSAPI_KEY"
 
+    def _get_key(self):
+        return os.environ.get("NEWSAPI_KEY") or os.environ.get("NEWS_API_KEY") or ""
+
     def available(self):
-        return bool(os.environ.get(self.key_env))
+        return bool(self._get_key())
 
     def fetch(self, query):
         response = _http_get(
             "https://newsapi.org/v2/everything",
             params={"q": query, "language": "en", "sortBy": "publishedAt", "pageSize": "30", "searchIn": "title,description"},
-            headers={"X-Api-Key": os.environ[self.key_env]},
+            headers={"X-Api-Key": self._get_key()},
         )
         try:
             data = response.json()

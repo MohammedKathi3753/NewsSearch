@@ -65,6 +65,8 @@ def _cors_origins():
         "http://localhost:19006",
         "http://localhost:3000",
         "http://localhost:8081",
+        "http://localhost:8001",
+        "http://127.0.0.1:8001",
         "http://127.0.0.1:19006",
         "https://localhost:19006",
     ):
@@ -203,7 +205,7 @@ def analyze():
     if ml is not None:
         # The baseline learned long-form writing style; short claims are unreliable.
         ml["reliability"] = "low" if len(text.split()) < 80 else "normal"
-        ml.pop("top_features", None)
+        ml["top_features"] = []
     keywords = ml_model.keywords(text)
     short_claim = len(text) <= 220
     query = re.sub(r"[\"“”]", "", text).strip() if short_claim else (" ".join(keywords[:8]) or text[:80])
@@ -288,6 +290,7 @@ def analyze():
         "persisted": persisted,
         "input": {"type": row["input_type"], "text": text[:600], "url": url or None, "source_title": source_title},
         "ml_track": ml or {"available": False, "reason": "model_not_available"},
+        "ai_explanation": {"available": False, "reason": "demoted_for_evidence_verdict"},
         "evidence_verdict": {"available": verdict is not None, "reason": verdict_reason, **(verdict or {})},
         "evidence_track": {
             "summary": {"available": summary is not None, "text": summary, "reason": summary_reason},
