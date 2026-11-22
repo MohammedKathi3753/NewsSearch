@@ -652,12 +652,15 @@ if os.environ.get("NEWSSEARCH_DISABLE_SCHEDULER") != "1":
 # The platform's process manager starts this module with uvicorn; the target
 # runtime is Gunicorn serving this same Flask app. Serve the Flask WSGI app
 # directly under Gunicorn, and wrap it as ASGI when loaded by uvicorn.
-if "gunicorn" in (sys.argv[0] or ""):
-    app = flask_app
-else:
-    from a2wsgi import WSGIMiddleware
+try:
+    if "gunicorn" in (sys.argv[0] or ""):
+        app = flask_app
+    else:
+        from a2wsgi import WSGIMiddleware
 
-    app = WSGIMiddleware(flask_app)
+        app = WSGIMiddleware(flask_app)
+except ImportError:
+    app = flask_app
 
 
 if __name__ == "__main__":

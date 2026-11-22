@@ -14,7 +14,9 @@
 // useTheme().colors inside the component.
 
 import { useMemo } from "react";
-import { Appearance, StyleSheet, useColorScheme } from "react-native";
+import { Appearance, StyleSheet, useColorScheme, ViewStyle, TextStyle, ImageStyle } from "react-native";
+
+type NamedStyles<T> = { [P in keyof T]: ViewStyle | TextStyle | ImageStyle };
 
 export type ColorScheme = "light" | "dark";
 
@@ -113,8 +115,8 @@ export function useTheme(): { scheme: ColorScheme; colors: ThemeColors } {
 
 // Themed StyleSheet: returns a hook that builds the sheet from the active
 // scheme's colors and memoizes it until the scheme changes.
-export function makeStyles<T extends StyleSheet.NamedStyles<T> | StyleSheet.NamedStyles<any>>(
-  factory: (colors: ThemeColors) => T & StyleSheet.NamedStyles<any>,
+export function makeStyles<T extends NamedStyles<T> | NamedStyles<any>>(
+  factory: (colors: ThemeColors) => T & NamedStyles<any>,
 ): () => T {
   return function useStyles(): T {
     const { colors } = useTheme();
