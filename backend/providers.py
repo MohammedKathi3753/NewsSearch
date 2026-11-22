@@ -154,43 +154,7 @@ def _fetch_rss(provider_name, kind, url, default_publisher):
     return [item for item in items if item]
 
 
-class GdeltProvider:
-    name = "gdelt"
-    kind = "news"
-    label = "GDELT"
-    requires_key = False
-    key_env = None
 
-    def available(self):
-        return True
-
-    def fetch(self, query):
-        clean_q = " ".join(re.findall(r"[\w]+", query or ""))[:80] or "news"
-        response = _http_get(
-            "https://api.gdeltproject.org/api/v2/doc/doc",
-            params={"query": clean_q, "mode": "artlist", "maxrecords": "30", "format": "json", "timespan": "7d", "sort": "datedesc"},
-        )
-        try:
-            data = response.json()
-        except ValueError as exc:
-            raise RuntimeError("gdelt_invalid_response") from exc
-        items = []
-        for article in (data.get("articles") or [])[:30]:
-            items.append(
-                _make_item(
-                    self.name,
-                    self.kind,
-                    article.get("title"),
-                    article.get("url"),
-                    published_at=article.get("seendate"),
-                    source={
-                        "domain": article.get("domain"),
-                        "language": article.get("language"),
-                        "country": article.get("sourcecountry"),
-                    },
-                )
-            )
-        return [item for item in items if item]
 
 
 class GoogleNewsProvider:
@@ -238,35 +202,6 @@ class EUvsDisinfoProvider:
     def fetch(self, query):
         return _filter_relevant(_fetch_rss(self.name, self.kind, "https://euvsdisinfo.eu/feed/", "EUvsDisinfo"), query)
 
-
-class OptionalFeedProvider:
-    name = "override"
-    kind = "factcheck"
-    label = "override"
-    requires_key = False
-    key_env = "override"
-    default_publisher = "override"
-
-    def available(self):
-        return bool(os.environ.get(self.key_env))
-
-    def fetch(self, query):
-        url = os.environ[self.key_env]
-        return _filter_relevant(_fetch_rss(self.name, self.kind, url, self.default_publisher), query)
-
-
-class AfpFactCheckProvider(OptionalFeedProvider):
-    name = "afp_factcheck"
-    label = "AFP Fact Check"
-    key_env = "AFP_FACTCHECK_FEED_URL"
-    default_publisher = "AFP Fact Check"
-
-
-class AfricaCheckProvider(OptionalFeedProvider):
-    name = "africa_check"
-    label = "Africa Check"
-    key_env = "AFRICA_CHECK_FEED_URL"
-    default_publisher = "Africa Check"
 
 
 class GoogleFactCheckProvider:
@@ -361,9 +296,6 @@ PROVIDERS = [
     PolitiFactProvider(),
     EUvsDisinfoProvider(),
     GoogleFactCheckProvider(),
-    AfpFactCheckProvider(),
-    AfricaCheckProvider(),
-    GdeltProvider(),
     GoogleNewsProvider(),
     NewsApiProvider(),
 ]
