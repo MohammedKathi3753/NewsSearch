@@ -121,9 +121,11 @@ def assess_claim(claim_excerpt: str, items: list, lang: str = "en") -> dict | No
         f"Claim: {claim_excerpt}\n\nRetrieved records:\n" + "\n".join(records) + "\n"
     )
     try:
-        raw = _chat(GROUNDING_RULES, user_prompt, max_tokens=700)
-        match = re.search(r"\{.*\}", raw, re.S)
-        data = json.loads(match.group(0) if match else raw)
+        raw = _chat(GROUNDING_RULES, user_prompt, max_tokens=2000)
+        # Reasoning models emit a <think>…</think> block before the JSON — strip it.
+        raw_stripped = re.sub(r"<think>.*?</think>", "", raw, flags=re.S).strip()
+        match = re.search(r"\{.*\}", raw_stripped or raw, re.S)
+        data = json.loads(match.group(0) if match else (raw_stripped or raw))
     except Exception as exc:  # noqa: BLE001
         log.warning("groq assess failed: %s", exc)
         return None
@@ -174,7 +176,7 @@ def summarize_evidence(claim_excerpt: str, items: list, lang: str = "en") -> str
         "Retrieved records:\n" + "\n".join(records) + "\n"
     )
     try:
-        return _chat(GROUNDING_RULES, user_prompt, max_tokens=600)
+        return _chat(GROUNDING_RULES, user_prompt, max_tokens=1200)
     except Exception as exc:  # noqa: BLE001
         log.warning("groq summarize failed: %s", exc)
         return None
