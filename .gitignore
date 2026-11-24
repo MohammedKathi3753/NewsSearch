@@ -63,6 +63,39 @@ yarn-error.log*
 # Cloud Agent platform cache
 .emergent/
 
+# Archives & Backups
+*.zip
+*.tar.gz
+*.rar
+newslens_project.zip
+
+# Legacy/untracked files
+backend/app/
+backend/ml/
+backend/wsgi.py
+database/
+frontend/index.html
+frontend/public/
+frontend/src/App.css
+frontend/src/App.tsx
+frontend/src/assets/
+frontend/src/components/analysis/
+frontend/src/components/auth/
+frontend/src/components/layout/
+frontend/src/components/notifications/
+frontend/src/config/
+frontend/src/context/
+frontend/src/hooks/useAnalysis.ts
+frontend/src/hooks/useAuth.ts
+frontend/src/index.css
+frontend/src/main.tsx
+frontend/src/pages/
+frontend/src/types/
+frontend/tsconfig.app.json
+frontend/tsconfig.node.json
+frontend/vite.config.ts
+frontend/.oxlintrc.json
+
 # OS & Editor
 .DS_Store
 Thumbs.db
